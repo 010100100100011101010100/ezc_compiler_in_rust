@@ -17,6 +17,7 @@ pub enum Token{
     Percentage,
     PlusPlus,
     MinusMinus,
+    StarStar,
 
 
 
@@ -49,6 +50,7 @@ pub enum Token{
     GreaterGreater,
     LesserLesser,
     GreaterGreaterGreater,
+    AmpAmp,
 
     //Assignment
     Equal,
@@ -68,7 +70,6 @@ pub enum Token{
     Dot,
     ThinArrow,
     Arrow,
-
     Eof,
 
 }
@@ -146,5 +147,191 @@ pub fn tokenize(input_stream:&str)->LexerOut{
     let is_identifier_symbol=|char:char| char.is_alphanumeric() || char=="_";
     let mut stream_iter=input_stream.chars().peekable();
     let mut line_number=1;
-    
+    while Some(current)=stream_iter.next(){
+        if current=="\n"{
+            line+=1;
+        }
+        if current.is_whitespace(){
+            continue;
+        }
+        if current=="/" && stream_iter.peek().is_some_and(|x| *x=="/"){
+            while stream_iter.next_if(|x| *x!="\n" ).is_some(){}
+            continue;
+        }
+
+        if current=="/" && stream_iter.peek().is_some(|x| *x=="*"){
+            loop{
+                if let Some('*') = stream_iter.next() && Some(&'/') == stream_iter.peek(){
+                        stream_iter.next();
+                        break;
+                }
+            }
+            continue;
+        }
+        let matched_token=match current {
+            char if char.is_numeric()=>{
+                let const_buffer=  char.to_string();
+                while let Some(char)=stream_iter.next_if(|x| x.is_alphanumeric()){
+                    const_buffer.push(char);
+                }
+                Token::Const(symbol_table.add_constant(const_buffer));
+            }
+
+            char if char.is_alphanumeric()=>{
+                let identifier_buffer=char.to_string();
+                while let Some(char)=stream_iter.next_if(|x| x.is_identifier_symbol()){
+                    identifier_buffer.push(char);
+                }
+                Token::Identifier(symbol_table.add_identifier(identifier_buffer));
+                        }
+            
+            '\"'=>{
+                let mut literal_buffer=String::new();
+                while let Some(char)=stream_iter.next_if(|&i| i!='\"'){
+                    literal_buffer.push(char);
+                }
+                Token::Literal(symbol_table.add_literal(literal_buffer));
+            }
+            '+'=>{
+                if stream_iter.next_if(|&x| x=="=").is_some(){
+                    Token::PlusEqual;
+                }
+                else if stream_iter.next_if(|&x| x=="+").is_some(){
+                    Token::PlusPlus;
+                }
+                else{
+                    Token::Plus;
+                }
+            }
+
+            '-'=>{
+                if stream_iter.next_if(|&x| x=='=').is_some(){
+                    Token::MinusEqual;
+                }
+                else if stream_iter.next_if(|&x| x=='-').is_some(){
+                    Token::MinusMinus;
+                }
+                else{
+                    Token::Minus;
+                }
+            }
+            '='=>{
+                if stream_iter.next_if(|&x| x=='=').is_some(){
+                    Token::EqualEqual;
+                }
+                else {
+                    Token::Equal;
+                }
+            }
+            //Create a greater greater greater logic
+            '>'=>{
+                if stream_iter.next_if(|&x| x=='>').is_some(){
+                    Token::GreaterGreater;
+                }
+                else if stream_iter.next_if(|&x| x=='=').is_some(){
+                    Token::GreaterEqual;
+                }
+                else if stream_iter.next_if(|&x| x=='>').is_some(){
+                    
+                    if stream_iter.next_if(|&x| x=='>').is_some(){
+                    Token::GreaterGreaterGreater;}
+                }
+                else{
+                    Token::Greater
+                }
+            }
+            '<'=>{
+                if stream_iter.next_if(|&x| x=='<').is_some(){
+                    Token::LesserLesser;
+                }
+                else if stream_iter.next_if(|&x| x=='=').is_some(){
+                    Token::LesserEqual;
+                }
+
+                else{
+                    Token::Lesser;
+                }
+            }
+            '%'=>{
+                if stream_iter.next_if(|&x| x=='='){
+                    Token::PercentageEqual;
+                }
+                else{
+                    Token::Percentage;
+                }
+            }
+            '/'=>{
+                if stream_iter.next_if(|&x| x=='='){
+                    Token::DashEqual;
+                }
+                else{
+                    Token::Dash;
+                }
+            }
+            '*'=>{
+                if stream_iter.next_if(|&x| x=='='){
+                    Token::StarEqual;
+                }
+                else if stream_iter.next_if(|&x| x=='*')
+                {
+                    Token::StarStar;
+                }
+                else{
+                    Token::Star
+                }
+            }
+            '^'=>{
+                if stream_iter.next_if(|&x| x=='=').is_some(){
+                    Token::CaretEqual;
+                }
+                else{
+                    Token::Caret;
+                }
+            }
+
+            '&'=>{
+                if stream_iter.next_if(|&x| x=='=').is_some(){
+                    Token::AmpEqual;
+                }
+                else if stream_iter.next_if(|&x| x=='&').is_some(){
+                    Token::AmpAmp;
+                }
+                else{
+                    Token::Amp;
+                }
+            }
+            '|'=>{
+                if stream_iter.next_if(|&x| x=='='){
+                    Token::PipeEqual
+                }
+                else if stream_iter.next_if(|&x| x=='|'){
+                    Token::PipePipe;
+                }
+                else{
+                    Token::Pipe;
+                }
+            }            
+            
+            '?' =>Token::Question,
+            '('=>Token::LeftBracket,
+            ')'=>Token::RightBracket,
+            '['=>Token::RightParanthesis,
+            ']'=>Token::LeftParanthesis,
+            ':'=>Token::Colon,
+            '~'=>Token::Tilde,
+            '{' => Token::LeftCurly,
+            '}'=> Token::RightCurly,
+            ','=>Token::Comma,
+            ';'=>Token::Semicolon,
+            x=> panic!("{x} at line# {line_number}"),
+
+        };
+        symbols.push(Symbol(matched_token,line_number));   
+    }
+    symbols.push(Symbol(Token::Eof,line_number));
+    output=LexerOut{
+        symbol_table,
+        symbols,
+    }
 }
+
